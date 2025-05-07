@@ -76,54 +76,39 @@ class ExpertModelerAgent(BaseAgent):
                 logger.warning(f"Unsupported file type received: {file.filename}")
 
             if df is not None:
-                # Vectorized column analysis
                 for col_name in df.columns:
-                    # Get unique values efficiently using numpy
                     unique_values = df[col_name].dropna().unique()
-                    
-                    # Calculate basic statistics for numeric columns
                     is_numeric = pd.api.types.is_numeric_dtype(df[col_name])
-                    stats = {}
-                    if is_numeric:
-                        stats = {
-                            'min': float(df[col_name].min()),
-                            'max': float(df[col_name].max()),
-                            'mean': float(df[col_name].mean()),
-                            'std': float(df[col_name].std())
-                        }
-                    
-                    # Get sample members efficiently
-                    sample_size = min(10, len(unique_values))
-                    if len(unique_values) > sample_size:
-                        # Use numpy's random choice for efficient sampling
-                        sample_members = np.random.choice(unique_values, size=sample_size, replace=False)
+                    unique_count = len(unique_values)
+                    null_count = int(df[col_name].isna().sum())
+                    # Heuristic: dimension if categorical and unique_count < 20% of rows and < 50 unique values
+                    if (not is_numeric and unique_count < max(50, 0.2 * len(df))) or (unique_count < 10):
+                        # Treat as dimension
+                        # Return all unique members for dimensions
+                        extracted_dimensions.append({
+                            "name": str(col_name),
+                            "members": [str(m) for m in unique_values],
+                            "type": "categorical" if not is_numeric else "numeric",
+                            "unique_count": unique_count,
+                            "null_count": null_count
+                        })
                     else:
-                        sample_members = unique_values
-                    
-                    # Create dimension info
-                    dimension_info = {
-                        "name": str(col_name),
-                        "members": [str(m) for m in sample_members],
-                        "type": "numeric" if is_numeric else "categorical",
-                        "unique_count": len(unique_values),
-                        "null_count": int(df[col_name].isna().sum())
-                    }
-                    
-                    if stats:
-                        dimension_info["statistics"] = stats
-                    
-                    extracted_dimensions.append(dimension_info)
-                
-                await self._broadcast_status(f"Expert Modeler Agent: Extracted {len(extracted_dimensions)} potential dimensions from headers.")
-                
-                # Add file-level statistics
+                        # Treat as measure
+                        extracted_dimensions.append({
+                            "name": str(col_name),
+                            "members": [],
+                            "type": "numeric" if is_numeric else "categorical",
+                            "unique_count": unique_count,
+                            "null_count": null_count
+                        })
+                await self._broadcast_status(f"Expert Modeler Agent: Hypothesized {len(extracted_dimensions)} dimensions.")
                 file_stats = {
                     "total_rows": len(df),
                     "total_columns": len(df.columns),
                     "memory_usage": df.memory_usage(deep=True).sum() / 1024 / 1024,  # MB
                     "null_percentage": (df.isna().sum().sum() / (df.shape[0] * df.shape[1])) * 100
                 }
-                commentary += f"\nFile statistics: {len(df)} rows, {len(df.columns)} columns, {file_stats['memory_usage']:.2f} MB, {file_stats['null_percentage']:.1f}% null values."
+                commentary += f"\nIdentified dimensions (with members): {[d['name'] for d in extracted_dimensions if d['members']]}.\nIdentified measures (to be generated): {[d['name'] for d in extracted_dimensions if not d['members']]}.\nFile statistics: {len(df)} rows, {len(df.columns)} columns, {file_stats['memory_usage']:.2f} MB, {file_stats['null_percentage']:.1f}% null values."
 
         except pd.errors.EmptyDataError:
             errors.append(f"The uploaded file '{file.filename}' appears to be empty.")
@@ -181,54 +166,39 @@ class ExpertModelerAgent(BaseAgent):
                 logger.warning(f"Unsupported file type received: {file.filename}")
 
             if df is not None:
-                # Vectorized column analysis
                 for col_name in df.columns:
-                    # Get unique values efficiently using numpy
                     unique_values = df[col_name].dropna().unique()
-                    
-                    # Calculate basic statistics for numeric columns
                     is_numeric = pd.api.types.is_numeric_dtype(df[col_name])
-                    stats = {}
-                    if is_numeric:
-                        stats = {
-                            'min': float(df[col_name].min()),
-                            'max': float(df[col_name].max()),
-                            'mean': float(df[col_name].mean()),
-                            'std': float(df[col_name].std())
-                        }
-                    
-                    # Get sample members efficiently
-                    sample_size = min(10, len(unique_values))
-                    if len(unique_values) > sample_size:
-                        # Use numpy's random choice for efficient sampling
-                        sample_members = np.random.choice(unique_values, size=sample_size, replace=False)
+                    unique_count = len(unique_values)
+                    null_count = int(df[col_name].isna().sum())
+                    # Heuristic: dimension if categorical and unique_count < 20% of rows and < 50 unique values
+                    if (not is_numeric and unique_count < max(50, 0.2 * len(df))) or (unique_count < 10):
+                        # Treat as dimension
+                        # Return all unique members for dimensions
+                        extracted_dimensions.append({
+                            "name": str(col_name),
+                            "members": [str(m) for m in unique_values],
+                            "type": "categorical" if not is_numeric else "numeric",
+                            "unique_count": unique_count,
+                            "null_count": null_count
+                        })
                     else:
-                        sample_members = unique_values
-                    
-                    # Create dimension info
-                    dimension_info = {
-                        "name": str(col_name),
-                        "members": [str(m) for m in sample_members],
-                        "type": "numeric" if is_numeric else "categorical",
-                        "unique_count": len(unique_values),
-                        "null_count": int(df[col_name].isna().sum())
-                    }
-                    
-                    if stats:
-                        dimension_info["statistics"] = stats
-                    
-                    extracted_dimensions.append(dimension_info)
-                
-                await self._broadcast_status(f"Expert Modeler Agent: Extracted {len(extracted_dimensions)} potential dimensions from headers.")
-                
-                # Add file-level statistics
+                        # Treat as measure
+                        extracted_dimensions.append({
+                            "name": str(col_name),
+                            "members": [],
+                            "type": "numeric" if is_numeric else "categorical",
+                            "unique_count": unique_count,
+                            "null_count": null_count
+                        })
+                await self._broadcast_status(f"Expert Modeler Agent: Hypothesized {len(extracted_dimensions)} dimensions.")
                 file_stats = {
                     "total_rows": len(df),
                     "total_columns": len(df.columns),
                     "memory_usage": df.memory_usage(deep=True).sum() / 1024 / 1024,  # MB
                     "null_percentage": (df.isna().sum().sum() / (df.shape[0] * df.shape[1])) * 100
                 }
-                commentary += f"\nFile statistics: {len(df)} rows, {len(df.columns)} columns, {file_stats['memory_usage']:.2f} MB, {file_stats['null_percentage']:.1f}% null values."
+                commentary += f"\nIdentified dimensions (with members): {[d['name'] for d in extracted_dimensions if d['members']]}.\nIdentified measures (to be generated): {[d['name'] for d in extracted_dimensions if not d['members']]}.\nFile statistics: {len(df)} rows, {len(df.columns)} columns, {file_stats['memory_usage']:.2f} MB, {file_stats['null_percentage']:.1f}% null values."
 
         except pd.errors.EmptyDataError:
             errors.append(f"The uploaded file '{file.filename}' appears to be empty.")

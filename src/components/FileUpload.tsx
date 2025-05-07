@@ -80,16 +80,22 @@ const FileUpload: React.FC = () => {
         throw new Error(result.detail || `HTTP error! status: ${response.status}`);
       }
       
-      // Assuming backend returns { dimensions: [{name: 'Dim1'}...], commentary: '...', errors: [...] }
+      // Assuming backend returns { dimensions: {name: members[]}, ... } or { dimensions: [{name: 'Dim1'}...], ... }
       const apiResult: ApiAnalysisResult = {
-          dimensions: result.dimensions || [], // This is {name: string}[] from API
+          dimensions: result.dimensions || [],
           commentary: result.commentary || '',
           errors: result.errors || []
       };
 
       setAnalysisResult(apiResult);
       // Initialize editable dimensions based on response
-      setEditedDimensions(apiResult.dimensions.map(d => d.name));
+      let dimNames: string[] = [];
+      if (Array.isArray(apiResult.dimensions)) {
+        dimNames = apiResult.dimensions.map((d: any) => d.name);
+      } else if (apiResult.dimensions && typeof apiResult.dimensions === 'object') {
+        dimNames = Object.keys(apiResult.dimensions);
+      }
+      setEditedDimensions(dimNames);
 
     } catch (error: any) {
       console.error('Upload failed:', error);
