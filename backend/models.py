@@ -69,6 +69,10 @@ class DataSettings(BaseModel):
         default=None,
         description="Random seed for reproducibility"
     )
+    measure_settings: Optional[Dict[str, Dict[str, Any]]] = Field(
+        default=None,
+        description="Per-measure settings: {measure_name: {distribution: 'uniform'|'normal', min, max, mean, stddev}}"
+    )
 
 class GenerationConfig(BaseModel):
     """Configuration for data generation."""

@@ -175,11 +175,26 @@ class DataGenerationAgent(BaseAgent):
         
         # Generate base measures randomly
         for measure_name in base_measures:
-            pattern = settings.data_patterns.get(measure_name) if settings.data_patterns else None
-            if pattern:
-                df[measure_name] = np.random.uniform(500, 5000, size=len(df)).round(2)
+            measure_cfg = settings.measure_settings.get(measure_name) if settings.measure_settings else None
+            if measure_cfg:
+                dist = measure_cfg.get('distribution', 'uniform')
+                if dist == 'uniform':
+                    min_val = float(measure_cfg.get('min', 100))
+                    max_val = float(measure_cfg.get('max', 10000))
+                    df[measure_name] = np.random.uniform(min_val, max_val, size=len(df)).round(2)
+                elif dist == 'normal':
+                    mean = float(measure_cfg.get('mean', 5000))
+                    stddev = float(measure_cfg.get('stddev', 1000))
+                    df[measure_name] = np.random.normal(mean, stddev, size=len(df)).round(2)
+                else:
+                    # fallback to uniform
+                    df[measure_name] = np.random.uniform(100, 10000, size=len(df)).round(2)
             else:
-                df[measure_name] = np.random.uniform(100, 10000, size=len(df)).round(2)
+                pattern = settings.data_patterns.get(measure_name) if settings.data_patterns else None
+                if pattern:
+                    df[measure_name] = np.random.uniform(500, 5000, size=len(df)).round(2)
+                else:
+                    df[measure_name] = np.random.uniform(100, 10000, size=len(df)).round(2)
         
         # --- Apply Calculation Dependencies Using Vectorized Operations ---
         if calculated_measures and not df.empty:

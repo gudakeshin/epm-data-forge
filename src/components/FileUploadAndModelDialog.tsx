@@ -15,7 +15,7 @@ interface Hypothesis {
 }
 
 interface Props {
-  onConfirm: (dimensions: Record<string, string[]>, measures: string[]) => void;
+  onConfirm: (dimensions: Record<string, string[]>, measures: string[], measureSettings: Record<string, any>, randomSeed?: number) => void;
 }
 
 const FileUploadAndModelDialog: React.FC<Props> = ({ onConfirm }) => {
@@ -23,6 +23,8 @@ const FileUploadAndModelDialog: React.FC<Props> = ({ onConfirm }) => {
   const [hypothesis, setHypothesis] = useState<Hypothesis | null>(null);
   const [dimensions, setDimensions] = useState<Record<string, string[]>>({});
   const [measures, setMeasures] = useState<string[]>([]);
+  const [measureSettings, setMeasureSettings] = useState<Record<string, any>>({});
+  const [randomSeed, setRandomSeed] = useState<number | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -98,8 +100,18 @@ const FileUploadAndModelDialog: React.FC<Props> = ({ onConfirm }) => {
     }
   };
 
+  const handleMeasureSettingChange = (measure: string, field: string, value: any) => {
+    setMeasureSettings(prev => ({
+      ...prev,
+      [measure]: {
+        ...prev[measure],
+        [field]: value
+      }
+    }));
+  };
+
   const handleConfirm = () => {
-    onConfirm(dimensions, measures);
+    onConfirm(dimensions, measures, measureSettings, randomSeed);
   };
 
   return (
@@ -140,7 +152,95 @@ const FileUploadAndModelDialog: React.FC<Props> = ({ onConfirm }) => {
               ))}
             </tbody>
           </table>
-          <button onClick={handleConfirm} style={{ marginTop: 16 }}>
+
+          {/* Per-measure settings UI */}
+          {measures.length > 0 && (
+            <div style={{ marginTop: 32 }}>
+              <h4>Measure Generation Settings</h4>
+              <table style={{ width: '100%', marginTop: 8, borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th>Measure</th>
+                    <th>Distribution</th>
+                    <th>Min</th>
+                    <th>Max</th>
+                    <th>Mean</th>
+                    <th>Stddev</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {measures.map(measure => {
+                    const settings = measureSettings[measure] || { distribution: 'uniform', min: 100, max: 10000, mean: 5000, stddev: 1000 };
+                    return (
+                      <tr key={measure}>
+                        <td>{measure}</td>
+                        <td>
+                          <select
+                            value={settings.distribution}
+                            onChange={e => handleMeasureSettingChange(measure, 'distribution', e.target.value)}
+                          >
+                            <option value="uniform">Uniform</option>
+                            <option value="normal">Normal</option>
+                          </select>
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            value={settings.min}
+                            onChange={e => handleMeasureSettingChange(measure, 'min', e.target.value)}
+                            disabled={settings.distribution !== 'uniform'}
+                            style={{ width: 80 }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            value={settings.max}
+                            onChange={e => handleMeasureSettingChange(measure, 'max', e.target.value)}
+                            disabled={settings.distribution !== 'uniform'}
+                            style={{ width: 80 }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            value={settings.mean}
+                            onChange={e => handleMeasureSettingChange(measure, 'mean', e.target.value)}
+                            disabled={settings.distribution !== 'normal'}
+                            style={{ width: 80 }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            value={settings.stddev}
+                            onChange={e => handleMeasureSettingChange(measure, 'stddev', e.target.value)}
+                            disabled={settings.distribution !== 'normal'}
+                            style={{ width: 80 }}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Random seed input */}
+          <div style={{ marginTop: 24 }}>
+            <label>
+              Random Seed (optional):
+              <input
+                type="number"
+                value={randomSeed ?? ''}
+                onChange={e => setRandomSeed(e.target.value ? parseInt(e.target.value) : undefined)}
+                style={{ marginLeft: 8, width: 120 }}
+              />
+            </label>
+          </div>
+
+          <button onClick={handleConfirm} style={{ marginTop: 24 }}>
             Confirm & Generate
           </button>
         </div>

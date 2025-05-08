@@ -11,6 +11,7 @@ import AgentStatusDisplay from './components/AgentStatusDisplay';
 import { ErrorBoundary } from 'react-error-boundary';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import FileUploadAndModelDialog from './components/FileUploadAndModelDialog';
 
 // Create a custom error fallback component
 function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
@@ -47,6 +48,8 @@ const queryClient = new QueryClient({
 
 const App = () => {
   const [isLoading, setIsLoading] = useState(true);
+  const [previewData, setPreviewData] = useState<Record<string, any>[]>([]);
+  const [numRecords, setNumRecords] = useState(1000);
   const connectWebSocket = useStatusStore((state) => state.connectWebSocket);
   const disconnectWebSocket = useStatusStore((state) => state.disconnectWebSocket);
 
@@ -68,6 +71,76 @@ const App = () => {
       disconnectWebSocket();
     };
   }, [connectWebSocket, disconnectWebSocket]);
+
+  // Handler for confirmed model structure and measure settings
+  const handleModelConfirm = async (
+    dimensions: Record<string, string[]>,
+    measures: string[],
+    measureSettings: Record<string, any>,
+    randomSeed?: number
+  ) => {
+    // Prompt for number of records
+    let records = numRecords;
+    const userInput = window.prompt('How many records to generate?', numRecords.toString());
+    if (userInput) {
+      const parsed = parseInt(userInput, 10);
+      if (!isNaN(parsed) && parsed > 0) records = parsed;
+    }
+    setNumRecords(records);
+
+    // Build GenerationConfig payload
+    const dimensionObjs = Object.entries(dimensions).map(([name, members]) => ({ name, members }));
+    const payload = {
+      model_type: 'Custom',
+      dimensions: dimensionObjs,
+      dependencies: [],
+      settings: {
+        num_records: records,
+        sparsity: 0.0,
+        data_patterns: null,
+        random_seed: randomSeed ?? null,
+        measure_settings: measureSettings,
+      },
+    };
+
+    // Call /generate-stream and show preview
+    setIsLoading(true);
+    try {
+      const res = await fetch('/generate-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      // /generate-stream returns a streaming response (newline-delimited JSON chunks)
+      const reader = res.body?.getReader();
+      let allRows: any[] = [];
+      if (reader) {
+        let done = false;
+        let decoder = new TextDecoder();
+        while (!done) {
+          const { value, done: doneReading } = await reader.read();
+          if (value) {
+            const text = decoder.decode(value);
+            // Each chunk is a JSON array (with newline)
+            text.split('\n').forEach(chunk => {
+              if (chunk.trim()) {
+                try {
+                  const rows = JSON.parse(chunk);
+                  if (Array.isArray(rows)) allRows = allRows.concat(rows);
+                } catch {}
+              }
+            });
+          }
+          done = doneReading;
+        }
+      }
+      setPreviewData(allRows.slice(0, 100)); // Show first 100 rows as preview
+    } catch (err) {
+      alert('Failed to generate data.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -91,6 +164,31 @@ const App = () => {
             </Routes>
           </BrowserRouter>
           <AgentStatusDisplay />
+          {previewData.length > 0 && (
+            <div style={{ maxWidth: 900, margin: '32px auto', background: '#fafafa', border: '1px solid #eee', borderRadius: 8, padding: 24 }}>
+              <h3>Generated Data Preview (first 100 rows)</h3>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      {Object.keys((previewData as any[])[0]).map(col => (
+                        <th key={col} style={{ borderBottom: '1px solid #ccc', padding: 4 }}>{col}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(previewData as any[]).map((row, i) => (
+                      <tr key={i}>
+                        {Object.values(row).map((val, j) => (
+                          <td key={j} style={{ borderBottom: '1px solid #eee', padding: 4 }}>{val}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </TooltipProvider>
       </QueryClientProvider>
     </ErrorBoundary>
